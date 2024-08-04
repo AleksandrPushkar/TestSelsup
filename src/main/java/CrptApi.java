@@ -1,5 +1,3 @@
-import lombok.Getter;
-import lombok.Setter;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -11,14 +9,37 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @WebServlet(name = "CreateDocumentServlet", urlPatterns = "/api/v3/lk/documents/create")
 public class CrptApi extends HttpServlet {
+    private TimeUnit timeUnit;
+    private AtomicInteger requestLimit ;
+    private DocumentService documentService;
+    private Date ;
+
+    public CrptApi(TimeUnit timeUnit, int requestLimit) {
+        this.timeUnit = timeUnit;
+        this.requestLimit = requestLimit;
+        documentService = new DocumentServiceImp();
+    }
+
+    private long getMilisecFromTimeUnit() {
+        long NANO_SCALE   = 1L;
+        long MICRO_SCALE  = 1000L * NANO_SCALE;
+        long MILLI_SCALE  = 1000L * MICRO_SCALE;
+        long SECOND_SCALE = 1000L * MILLI_SCALE;
+        long MINUTE_SCALE = 60L * SECOND_SCALE;
+        long HOUR_SCALE   = 60L * MINUTE_SCALE;
+        long DAY_SCALE    = 24L * HOUR_SCALE;
+    }
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
@@ -29,59 +50,81 @@ public class CrptApi extends HttpServlet {
                 postData.append(line);
             }
         } catch (IOException ex) {
-            System.out.println("Произошло исключение ввода-вывода");
+            System.out.println("Log: При Post запросе произошло исключение ввода-вывода! " + ex.getMessage());
         }
-        JsonRequestParser parser = new JsonRequestParser();
-        InputDocumentRequest inputDocReq = parser.parseRequestCreateDocument(postData.toString());
+        if(!postData.isEmpty()) {
+            DocumentService documentService = new DocumentServiceImp();
+            String docId = documentService.createDocument(postData.toString());
+            PrintWriter printWriter = resp.getWriter();
+            printWriter.write(docId);
+            printWriter.close();
+        }
+    }
+
+    private DocumentService getDocumentService() {
+        timeUnit.
+        while(!file.isDownloaded())
+        {
+            Thread.sleep(1000);
+        }
+        processFile(file);
+        not
     }
 
     class JsonRequestParser {
-        public InputDocumentRequest parseRequestCreateDocument(String outputJsonStr) {
+        public Document parseRequestCreateDocument(String outputJsonStr) {
             try {
                 JSONParser parser = new JSONParser();
                 JSONObject jsonData = (JSONObject) parser.parse(outputJsonStr);
-                ((JSONObject) jsonData.get("description")).get("participantInn");
-                jsonData.get("doc_id");
-                jsonData.get("doc_status");
-                jsonData.get("doc_type");
-                jsonData.get("importRequest");
-                jsonData.get("owner_inn");
-                jsonData.get("participant_inn");
-                jsonData.get("producer_inn");
-                jsonData.get("production_date");
-                jsonData.get("production_type");
-                JSONArray innerArray = (JSONArray) jsonData.get("products");
-                JSONObject innerObject = (JSONObject) innerArray.get(0);
-                innerObject.get("certificate_document");
-                innerObject.get("certificate_document_date");
-                innerObject.get("certificate_document_number");
-                innerObject.get("owner_inn");
-                innerObject.get("producer_inn");
-                innerObject.get("production_date");
-                innerObject.get("tnved_code");
-                innerObject.get("uit_code");
-                innerObject.get("uitu_code");
-                jsonData.get("reg_date");
-                jsonData.get("reg_number");
-
-                try {
-                    SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
-                    Date date = formatter.parse("2020-01-23");
-                    System.out.println(date);
-                } catch (ParseException e) {
-                    e.printStackTrace();
-                }
-
-
+                Description description = new Description();
+                description.participantInn = (String) ((JSONObject) jsonData.get("description")).get("participantInn");
+                Document document = new Document();
+                document.description = description;
+                document.docId = (String) jsonData.get("doc_id");
+                document.docStatus = (String) jsonData.get("doc_status");
+                document.docType = (String) jsonData.get("doc_type");
+                document.importRequest = (boolean) jsonData.get("importRequest");
+                document.ownerInn = (String) jsonData.get("owner_inn");
+                document.participantInn = (String) jsonData.get("participant_inn");
+                document.producerInn = (String) jsonData.get("producer_inn");
+                document.productionDate = getDate((String) jsonData.get("production_date"));
+                document.productionType = (String) jsonData.get("production_type");
+                Product product = new Product();
+                JSONArray productArray = (JSONArray) jsonData.get("products");
+                JSONObject productObject = (JSONObject) productArray.get(0);
+                product.certificateDocument = (String) productObject.get("certificate_document");
+                product.certificateDocumentDate = getDate((String) productObject.get("certificate_document_date"));
+                product.certificateDocumentNumber = (String) productObject.get("certificate_document_number");
+                product.ownerInn = (String) productObject.get("owner_inn");
+                product.producerInn = (String) productObject.get("producer_inn");
+                product.productionDate = getDate((String) productObject.get("production_date"));
+                product.tnvedCode = (String) productObject.get("tnved_code");
+                product.uitCode = (String) productObject.get("uit_code");
+                product.uituCode = (String) productObject.get("uitu_code");
+                document.product = product;
+                document.regDate = getDate((String) jsonData.get("reg_date"));
+                document.regNumber = (String) jsonData.get("reg_number");
+                return document;
             } catch (Exception ex) {
-                ex.printStackTrace();
+                System.out.println("Log: Пробелмы с парсингом документа при создании! " + ex.getMessage());
+                return new Document();
             }
+        }
+
+        private Date getDate(String strDate) {
+            Date date;
+            SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
+            try {
+                date = formatter.parse(strDate);
+            } catch (ParseException ex) {
+                System.out.println("Log: Пробелмы с датой! " + ex.getMessage());
+                date = new Date();
+            }
+            return date;
         }
     }
 
-    @Setter
-    @Getter
-    class RequestInputDocument {
+    class Document {
         private Description description;
         private String docId;
         private String docStatus;
@@ -92,20 +135,16 @@ public class CrptApi extends HttpServlet {
         private String producerInn;
         private Date productionDate;
         private String productionType;
-        private Products products;
+        private Product product;
         private Date regDate;
         private String regNumber;
     }
 
-    @Setter
-    @Getter
     class  Description {
         private String participantInn;
     }
 
-    @Setter
-    @Getter
-    class Products {
+    class Product {
        private String certificateDocument;
        private Date certificateDocumentDate;
        private String certificateDocumentNumber;
@@ -119,16 +158,22 @@ public class CrptApi extends HttpServlet {
 
 
     interface DocumentService {
-        public void createDocument(InputDocumentRequest inputDocReq);
+        public String createDocument(String jsonDocStr);
     }
 
     class DocumentServiceImp implements DocumentService {
+        private final Map<String, Document> documentMap = new HashMap<>();
 
-        private Map<Long, Document> documentMap = new HashMap<>();
-        //private
-        public void createDocument(InputDocumentRequest inputDocReq) {
-            countId++;
-            doc_id = countId;
+        public String createDocument(String jsonDocStr) {
+            JsonRequestParser parser = new JsonRequestParser();
+            Document document = parser.parseRequestCreateDocument(jsonDocStr);
+            if (document.docId == null) {
+                return "";
+            }
+            synchronized (documentMap) {
+                documentMap.put(document.docId, document);
+            }
+            return document.docId;
         }
     }
 }

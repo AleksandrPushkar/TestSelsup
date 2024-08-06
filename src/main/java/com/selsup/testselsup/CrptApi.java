@@ -1,9 +1,9 @@
-import lombok.Synchronized;
+package com.selsup.testselsup;
+
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 
-import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -17,33 +17,28 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @WebServlet(name = "CreateDocumentServlet", urlPatterns = "/api/v3/lk/documents/create")
 public class CrptApi extends HttpServlet {
-    private TimeUnit timeUnit;
     private int requestLimit;
     private AtomicInteger threadPool;
+    private AtomicBoolean isTimerStarted;
     private DocumentService documentService;
+    private Timer timer;
 
     public CrptApi(TimeUnit timeUnit, int requestLimit) {
-        this.timeUnit = timeUnit;
-        this.threadPool = new AtomicInteger(requestLimit);
+        this.requestLimit = requestLimit;
+        threadPool = new AtomicInteger();
+        isTimerStarted = new AtomicBoolean();
         documentService = new DocumentServiceImp();
-    }
-
-    private void getMilisecFromTimeUnit() {
-        long NANO_SCALE = 1L;
-        long MICRO_SCALE = 1000L * NANO_SCALE;
-        long MILLI_SCALE = 1000L * MICRO_SCALE;
-        long SECOND_SCALE = 1000L * MILLI_SCALE;
-        long MINUTE_SCALE = 60L * SECOND_SCALE;
-        long HOUR_SCALE = 60L * MINUTE_SCALE;
-        long DAY_SCALE = 24L * HOUR_SCALE;
+        timer = new Timer(this, timeUnit);
     }
 
     @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        addThreadPool();
         StringBuilder postData = new StringBuilder();
         String line;
         try (BufferedReader reader = req.getReader()) {
@@ -54,40 +49,63 @@ public class CrptApi extends HttpServlet {
             System.out.println("Log: При Post запросе произошло исключение ввода-вывода! " + ex.getMessage());
         }
         if (!postData.isEmpty()) {
-            DocumentService documentService = new DocumentServiceImp();
             String docId = documentService.createDocument(postData.toString());
             PrintWriter printWriter = resp.getWriter();
             printWriter.write(docId);
             printWriter.close();
+        }
+        synchronized (this) {
+            if (threadPool.get() > 0) {
+                threadPool.decrementAndGet();
+            }
+            notify();
         }
     }
 
     private void addThreadPool() {
         while (true) {
             synchronized (this) {
-                if (threadPool.get() == 0) {
-
+                if (!isTimerStarted.get()) {
+                    timer.start();
+                    threadPool.incrementAndGet();
+                    isTimerStarted.set(true);
+                    break;
+                }
+                if (threadPool.get() < requestLimit) {
+                    threadPool.incrementAndGet();
+                    break;
+                }
+                try {
+                    wait();
+                } catch (InterruptedException ex) {
+                    System.out.println("Log: Исключение в классе com.selsup.testselsup.CrptApi. " + ex.getMessage());
                 }
             }
         }
     }
 
     class Timer extends Thread {
+        private CrptApi crptApi;
+        private TimeUnit timeUnit;
+
+        public Timer(CrptApi crptApi, TimeUnit timeUnit) {
+            this.crptApi = crptApi;
+            this.timeUnit = timeUnit;
+        }
+
         @Override
         public void run() {
-            
+            try {
+                Thread.sleep(timeUnit.toMillis(1));
+                synchronized (crptApi) {
+                    crptApi.threadPool.set(0);
+                    crptApi.isTimerStarted.set(false);
+                }
+            } catch (InterruptedException ex) {
+                System.out.println("Log: Исключение в классе Timer. " + ex.getMessage());
+            }
         }
     }
-
-    /*private DocumentService getDocumentService() {
-        timeUnit.
-        while(!file.isDownloaded())
-        {
-            Thread.sleep(1000);
-        }
-        processFile(file);
-        not
-    }*/
 
     class JsonRequestParser {
         public Document parseRequestCreateDocument(String outputJsonStr) {

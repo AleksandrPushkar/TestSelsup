@@ -1,3 +1,4 @@
+import lombok.Synchronized;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -21,24 +22,24 @@ import java.util.concurrent.atomic.AtomicInteger;
 @WebServlet(name = "CreateDocumentServlet", urlPatterns = "/api/v3/lk/documents/create")
 public class CrptApi extends HttpServlet {
     private TimeUnit timeUnit;
-    private AtomicInteger requestLimit ;
+    private int requestLimit;
+    private AtomicInteger threadPool;
     private DocumentService documentService;
-    private Date ;
 
     public CrptApi(TimeUnit timeUnit, int requestLimit) {
         this.timeUnit = timeUnit;
-        this.requestLimit = requestLimit;
+        this.threadPool = new AtomicInteger(requestLimit);
         documentService = new DocumentServiceImp();
     }
 
-    private long getMilisecFromTimeUnit() {
-        long NANO_SCALE   = 1L;
-        long MICRO_SCALE  = 1000L * NANO_SCALE;
-        long MILLI_SCALE  = 1000L * MICRO_SCALE;
+    private void getMilisecFromTimeUnit() {
+        long NANO_SCALE = 1L;
+        long MICRO_SCALE = 1000L * NANO_SCALE;
+        long MILLI_SCALE = 1000L * MICRO_SCALE;
         long SECOND_SCALE = 1000L * MILLI_SCALE;
         long MINUTE_SCALE = 60L * SECOND_SCALE;
-        long HOUR_SCALE   = 60L * MINUTE_SCALE;
-        long DAY_SCALE    = 24L * HOUR_SCALE;
+        long HOUR_SCALE = 60L * MINUTE_SCALE;
+        long DAY_SCALE = 24L * HOUR_SCALE;
     }
 
     @Override
@@ -52,7 +53,7 @@ public class CrptApi extends HttpServlet {
         } catch (IOException ex) {
             System.out.println("Log: При Post запросе произошло исключение ввода-вывода! " + ex.getMessage());
         }
-        if(!postData.isEmpty()) {
+        if (!postData.isEmpty()) {
             DocumentService documentService = new DocumentServiceImp();
             String docId = documentService.createDocument(postData.toString());
             PrintWriter printWriter = resp.getWriter();
@@ -61,7 +62,24 @@ public class CrptApi extends HttpServlet {
         }
     }
 
-    private DocumentService getDocumentService() {
+    private void addThreadPool() {
+        while (true) {
+            synchronized (this) {
+                if (threadPool.get() == 0) {
+
+                }
+            }
+        }
+    }
+
+    class Timer extends Thread {
+        @Override
+        public void run() {
+            
+        }
+    }
+
+    /*private DocumentService getDocumentService() {
         timeUnit.
         while(!file.isDownloaded())
         {
@@ -69,7 +87,7 @@ public class CrptApi extends HttpServlet {
         }
         processFile(file);
         not
-    }
+    }*/
 
     class JsonRequestParser {
         public Document parseRequestCreateDocument(String outputJsonStr) {
@@ -140,20 +158,20 @@ public class CrptApi extends HttpServlet {
         private String regNumber;
     }
 
-    class  Description {
+    class Description {
         private String participantInn;
     }
 
     class Product {
-       private String certificateDocument;
-       private Date certificateDocumentDate;
-       private String certificateDocumentNumber;
-       private String ownerInn;
-       private String producerInn;
-       private Date productionDate;
-       private String tnvedCode;
-       private String uitCode;
-       private String uituCode;
+        private String certificateDocument;
+        private Date certificateDocumentDate;
+        private String certificateDocumentNumber;
+        private String ownerInn;
+        private String producerInn;
+        private Date productionDate;
+        private String tnvedCode;
+        private String uitCode;
+        private String uituCode;
     }
 
 
